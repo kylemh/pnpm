@@ -120,7 +120,32 @@ export function createDownloader (
         })
 
         if (res.status !== 200) {
-          throw new FetchError({ url, authHeaderValue }, res)
+          let hint: string | undefined
+          // For auth-related errors, try to extract the error message from the response body
+          if (res.status === 401 || res.status === 403 || res.status === 404) {
+            try {
+              // Clone the response to avoid consuming the body stream
+              const clonedRes = res.clone()
+              const body = await clonedRes.text()
+              if (body) {
+                try {
+                  // Try to parse as JSON first (common registry response format)
+                  const json = JSON.parse(body)
+                  if (json.error) {
+                    hint = json.error
+                  } else if (json.message) {
+                    hint = json.message
+                  }
+                } catch {
+                  // If not JSON, use the body text as-is (up to 500 chars to avoid huge error messages)
+                  hint = body.substring(0, 500)
+                }
+              }
+            } catch {
+              // If we can't read the body, just continue without a hint
+            }
+          }
+          throw new FetchError({ url, authHeaderValue }, res, hint)
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')

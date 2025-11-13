@@ -344,6 +344,75 @@ test('throw error when accessing private package w/o authorization', async () =>
   expect(scope.isDone()).toBeTruthy()
 })
 
+test('throw error with server message when 403 with JSON error response', async () => {
+  const errorMessage = '403 Forbidden - GET https://capsule.jfrog.io/capsule/api/npm/npm/axios/-/axios-0.30.1.tgz\n\nIn most cases, you or one of your dependencies are requesting a package version that is forbidden by your security policy, or on a server you do not have access to.'
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .reply(403, { error: errorMessage })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toHaveProperty('hint', expect.stringContaining(errorMessage))
+  expect(scope.isDone()).toBeTruthy()
+})
+
+test('throw error with server message when 403 with message field', async () => {
+  const errorMessage = 'Package is forbidden by security policy'
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .reply(403, { message: errorMessage })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toHaveProperty('hint', expect.stringContaining(errorMessage))
+  expect(scope.isDone()).toBeTruthy()
+})
+
+test('throw error with server message when 403 with plain text response', async () => {
+  const errorMessage = 'Access denied by security policy'
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .reply(403, errorMessage, { 'Content-Type': 'text/plain' })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg,
+    })
+  ).rejects.toHaveProperty('hint', expect.stringContaining(errorMessage))
+  expect(scope.isDone()).toBeTruthy()
+})
+
 test('do not retry when package does not exist', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')

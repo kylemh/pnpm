@@ -27,7 +27,8 @@ export class RegistryResponseError extends FetchError {
   constructor (
     request: FetchErrorRequest,
     response: FetchErrorResponse,
-    pkgName: string
+    pkgName: string,
+    serverHint?: string
   ) {
     let hint: string | undefined
     if (response.status === 404) {
@@ -36,6 +37,10 @@ export class RegistryResponseError extends FetchError {
       if (matched != null) {
         hint += ` Did you mean ${matched[1]}?`
       }
+    }
+    // If there's a server hint, prepend it to any existing hint
+    if (serverHint) {
+      hint = hint ? `${serverHint}\n\n${hint}` : serverHint
     }
     super(request, response, hint)
     this.pkgName = pkgName
@@ -77,7 +82,23 @@ export async function fetchMetadataFromFromRegistry (
           authHeaderValue,
           url: uri,
         }
-        reject(new RegistryResponseError(request, response, pkgName))
+        let serverHint: string | undefined
+        // For auth-related errors, try to extract the error message from the response body
+        if (response.status === 401 || response.status === 403 || response.status === 404) {
+          try {
+            const json = await response.json()
+            if (json && typeof json === 'object') {
+              if ('error' in json && typeof json.error === 'string') {
+                serverHint = json.error
+              } else if ('message' in json && typeof json.message === 'string') {
+                serverHint = json.message
+              }
+            }
+          } catch {
+            // If we can't parse the JSON, just continue without a hint
+          }
+        }
+        reject(new RegistryResponseError(request, response, pkgName, serverHint))
         return
       }
 

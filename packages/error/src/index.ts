@@ -44,11 +44,15 @@ export class FetchError extends PnpmError {
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {
-      hint = hint ? `${hint}\n\n` : ''
-      if (_request.authHeaderValue) {
-        hint += `An authorization header was used: ${_request.authHeaderValue}`
+      const authHint = _request.authHeaderValue
+        ? `An authorization header was used: ${_request.authHeaderValue}`
+        : 'No authorization header was set for the request.'
+
+      // If there's a hint from the server response, prepend it to the auth hint
+      if (hint) {
+        hint = `${hint}\n\n${authHint}`
       } else {
-        hint += 'No authorization header was set for the request.'
+        hint = authHint
       }
     }
     super(`FETCH_${response.status}`, message, { hint })

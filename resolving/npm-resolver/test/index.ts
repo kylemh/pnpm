@@ -846,6 +846,34 @@ test('error is thrown when package needs authorization', async () => {
     )
 })
 
+test('error includes server message when package needs authorization and server provides error details', async () => {
+  const errorMessage = 'In most cases, you or one of your dependencies are requesting a package version that is forbidden by your security policy, or on a server you do not have access to.'
+  nock(registries.default)
+    .get('/needs-auth')
+    .reply(403, { error: errorMessage })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  await expect(resolveFromNpm({ alias: 'needs-auth', bareSpecifier: '*' }, {})).rejects
+    .toHaveProperty('hint', expect.stringContaining(errorMessage))
+})
+
+test('error includes server message field when package needs authorization', async () => {
+  const errorMessage = 'Package is forbidden by security policy'
+  nock(registries.default)
+    .get('/needs-auth')
+    .reply(403, { message: errorMessage })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  await expect(resolveFromNpm({ alias: 'needs-auth', bareSpecifier: '*' }, {})).rejects
+    .toHaveProperty('hint', expect.stringContaining(errorMessage))
+})
+
 test('error is thrown when there is no package found for the requested range', async () => {
   nock(registries.default)
     .get('/is-positive')
